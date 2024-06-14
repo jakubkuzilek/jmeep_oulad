@@ -2,7 +2,7 @@
 # Journal of Measurement and Evaluation in Education and Psychology (JMEEP): OULAD processing
 
 <!-- badges: start -->
-![](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
+[![](https://img.shields.io/badge/lifecycle-experimental-orange.svg)](https://lifecycle.r-lib.org/articles/stages.html#experimental)
 <!-- badges: end -->
 
 The goal of of this project is explore and evaluate the Open University Learning Analytics Dataset (OULAD) 
