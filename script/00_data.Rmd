@@ -1,0 +1,227 @@
+---
+title: "00_data"
+output: html_notebook
+---
+>!!!! Adjustments needed based on final decision on target variable ->
+we need to filter out the TMAs and VLE activities based on the target variable 
+date:
+ - for final_result keep it as it is
+ - for TMAs we need to check day in assessment table to filter the VLE activities
+ - for TMAs we need to filter out TMAx where x > y, where TMAy is selected as target variable
+TMA ids (in assessment table) are increasing integers so id_assessment of TMA1 
+is the smallest value for selected module and presentation
+
+# Init
+```{r init, include=FALSE}
+library(tidyverse)
+library(oulad)
+library(patchwork)
+library(magrittr)
+```
+
+# General analysis
+```{r explore-final-result}
+g1 <-
+  student %>% 
+  select(code_module, code_presentation, final_result) %>%
+  mutate(course = paste0(code_module, " ", code_presentation)) %>% 
+  group_by(course) %>%
+  count() %>%
+  ggplot(aes(x = course, y = n)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Course",
+       y = "# of students") +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+g2 <- 
+  student %>% 
+  select(code_module, code_presentation, final_result) %>%
+  mutate(course = paste0(code_module, " ", code_presentation)) %>% 
+  group_by(course) %>% 
+  count(final_result) %>%
+  mutate(final_result = factor(final_result, labels = c("Distinction",
+                                                        "Pass",
+                                                        "Fail",
+                                                        "Withdrawn")
+                               ),
+         total_n = sum(n),
+         n = n / sum(n)
+  ) %>% 
+  ggplot(aes(x = course, y = n, fill = final_result)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Course",
+       y = "% of students") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+g1 / g2
+```
+
+```{r explore-assessmet-results, fig.width=10, fig.height=20}
+student %>% 
+  select(code_module, code_presentation, id_student) %>% 
+  left_join(student_assessment, by = "id_student") %>%
+  left_join(assessment, by = c("code_module", "code_presentation", "id_assessment"))%>%
+  filter(assessment_type == "TMA",
+         !is_banked,
+         date_submitted <= date) %>% 
+  mutate(result = ifelse(score >= 40, "Pass", "Fail"),
+         result = ifelse(is.na(score), "Fail", result),
+         result = factor(result, levels = c("Pass","Fail"))) %>% 
+  select(code_module, code_presentation, id_assessment, id_student, result) %>% 
+  group_by(code_module, code_presentation) %>% 
+  mutate(id_assessment = paste0("TMA", id_assessment-min(id_assessment)+1)) %>% 
+  group_by(code_module, code_presentation, id_assessment, result) %>%
+  count() %>%
+  group_by(code_module, code_presentation, id_assessment) %>%
+  mutate(n = n / sum(n)) %>% 
+  ggplot(aes(x = id_assessment, y = n, fill = result)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Assessment",
+       y = "# of students") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  facet_wrap(code_module~code_presentation, scale = "free", ncol = 2)
+
+```
+
+Based on number of students and the rates I would go for DDD 2013J and DDD 2014J.
+
+# Detailed analysis
+```{r detailed-analysis-DDD}
+student %>% 
+  filter(code_module == "DDD", code_presentation %in% c("2013J","2014J"), final_result != "Withdrawn") %>%
+  select(code_module, code_presentation, id_student, final_result) %>%
+  mutate(final_result = ifelse(final_result == "Distinction", "Pass", final_result),
+         final_result = factor(final_result, levels = c("Pass",
+                                                        "Fail")
+                               )) %>%
+  group_by(code_module, code_presentation) %>% 
+  count(final_result) %>% 
+  mutate(n = n / sum(n)) %>% 
+  ggplot(aes(x = code_presentation, y = n, fill = final_result)) + 
+  geom_bar(stat = "identity") +
+  labs(title = "Final result distribution for DDD",
+       x = "Presentation",
+       y = "% of students") +
+  theme_classic()
+```
+
+```{r detailed-analysis-DDD-assessments}
+# filter out all withdrawn
+student %>% 
+  filter(code_module == "DDD", code_presentation %in% c("2013J","2014J"), final_result != "Withdrawn") %>%
+  select(code_module, code_presentation, id_student) %>% 
+  left_join(student_assessment, by = "id_student") %>%
+  left_join(assessment, by = c("code_module", "code_presentation", "id_assessment"))%>%
+  filter(assessment_type == "TMA") %>% 
+  mutate(result = ifelse(score >= 40, "Pass", "Fail"),
+         result = ifelse(is.na(score), "Fail", result),
+         result = factor(result, levels = c("Pass","Fail"))) %>% 
+  select(code_module, code_presentation, id_assessment, id_student, result) %>% 
+  group_by(code_module, code_presentation) %>% 
+  mutate(id_assessment = paste0("TMA", id_assessment-min(id_assessment)+1)) %>% 
+  group_by(code_module, code_presentation, id_assessment, result) %>%
+  count() %>%
+  group_by(code_module, code_presentation, id_assessment) %>%
+  mutate(n = n / sum(n)) %>% 
+  ggplot(aes(x = id_assessment, y = n, fill = result)) +
+  geom_bar(stat = "identity") +
+  labs(x = "Assessment",
+       y = "% of students") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  facet_wrap(code_module~code_presentation, scale = "free", ncol = 2) +
+  theme_classic()
+
+```
+
+# Prepare data
+```{r prepare-data}
+final_dataset <-
+  student %>% 
+  filter(code_module == "DDD", code_presentation %in% c("2013J","2014J"), final_result != "Withdrawn") %>%
+  left_join(student_assessment, by = "id_student") %>%
+  left_join(assessment, by = c("code_module", "code_presentation", "id_assessment"))%>%
+  filter(assessment_type == "TMA") %>% 
+  group_by(code_module, code_presentation) %>% 
+  # filter(id_assessment <= <id_assesment-of-selected-TMA>) %>%
+  mutate(id_assessment = paste0("TMA", id_assessment-min(id_assessment)+1),
+         result = ifelse(score >= 40, "Pass", "Fail"),
+         result = ifelse(is.na(score), "Fail", result),
+         result = factor(result, levels = c("Pass","Fail"))) %>% 
+  select(code_module, 
+         code_presentation,
+         id_student,
+         gender,
+         region,
+         highest_education,
+         imd_band,
+         age_band,
+         num_of_prev_attempts,
+         studied_credits,
+         disability,
+         final_result,
+         id_assessment,
+         result) %>% 
+  pivot_wider(names_from = id_assessment,
+              values_from = result,
+              values_fill = list(result = "Fail"))
+
+final_vle_activity <-
+  student_vle %>% 
+  filter(code_module == "DDD", code_presentation %in% c("2013J","2014J")) %>% 
+  # filter(date < <date-from-assessment-table>) %>% 
+  mutate(date1 = if_else(date >= 0, date+1, date),
+         week = floor(date1 / 7)) %>% 
+  left_join(vle, by = c("code_module","code_presentation","id_site")) %>% 
+  select(code_module,
+         code_presentation,
+         activity_type,
+         id_student, week,
+         sum_click) %>% 
+  group_by(code_module, code_presentation, id_student, activity_type, week) %>%
+  summarise(sum_click = sum(sum_click)) %>% 
+  arrange(week, code_module, code_presentation, id_student, activity_type) %>% 
+  pivot_wider(names_from = c(week, activity_type),
+              names_prefix = "week_",
+              values_from = sum_click,
+              values_fill = list(sum_click = 0))
+
+final_vle_activity %<>%
+  semi_join(final_dataset, by = c("code_module","code_presentation","id_student"))
+
+final_vle <-
+  student_vle %>% 
+  filter(code_module == "DDD", code_presentation %in% c("2013J","2014J")) %>% 
+  # filter(date < <date-from-assessment-table>) %>% 
+  mutate(date1 = if_else(date >= 0, date+1, date),
+         week = floor(date1 / 7)) %>% 
+  select(code_module,
+         code_presentation,
+         id_student, week,
+         sum_click) %>% 
+  group_by(code_module, code_presentation, id_student, week) %>%
+  summarise(sum_click = sum(sum_click)) %>% 
+  arrange(week, code_module, code_presentation, id_student) %>% 
+  pivot_wider(names_from = week,
+              names_prefix = "week_",
+              values_from = sum_click,
+              values_fill = list(sum_click = 0))
+
+final_vle %<>%
+  semi_join(final_dataset, by = c("code_module","code_presentation","id_student"))
+
+final_dataset %<>%
+  semi_join(final_vle, by = c("code_module","code_presentation","id_student"))
+
+final_dataset %>%
+  write_csv("data/final_dataset.csv")
+
+final_vle_activity %>%
+  write_csv("data/final_vle_activity.csv")
+
+final_vle %>%
+  write_csv("data/final_vle.csv")
+
+```
+
