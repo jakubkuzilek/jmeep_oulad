@@ -17,6 +17,7 @@ library(tidyverse)
 library(oulad)
 library(patchwork)
 library(magrittr)
+library(stringr)
 ```
 
 # General analysis
@@ -146,9 +147,11 @@ final_dataset <-
   group_by(code_module, code_presentation) %>% 
   # filter(id_assessment <= <id_assesment-of-selected-TMA>) %>%
   mutate(id_assessment = paste0("TMA", id_assessment-min(id_assessment)+1),
-         result = ifelse(score >= 40, "Pass", "Fail"),
-         result = ifelse(is.na(score), "Fail", result),
-         result = factor(result, levels = c("Pass","Fail"))) %>% 
+         #result = ifelse(score >= 40, "Pass", "Fail"),
+         score = ifelse(is.na(score), 0, score),
+         score = ifelse(score > 100, 100, score)
+         #result = factor(result, levels = c("Pass","Fail"))
+         ) %>% 
   select(code_module, 
          code_presentation,
          id_student,
@@ -162,10 +165,10 @@ final_dataset <-
          disability,
          final_result,
          id_assessment,
-         result) %>% 
+         score) %>% 
   pivot_wider(names_from = id_assessment,
-              values_from = result,
-              values_fill = list(result = "Fail"))
+              values_from = score,
+              values_fill = list(score = 0))
 
 final_vle_activity <-
   student_vle %>% 
@@ -190,6 +193,9 @@ final_vle_activity <-
 final_vle_activity %<>%
   semi_join(final_dataset, by = c("code_module","code_presentation","id_student"))
 
+names(final_vle_activity) <- 
+  str_replace(names(final_vle_activity),"-","minus_")
+
 final_vle <-
   student_vle %>% 
   filter(code_module == "DDD", code_presentation %in% c("2013J","2014J")) %>% 
@@ -211,17 +217,16 @@ final_vle <-
 final_vle %<>%
   semi_join(final_dataset, by = c("code_module","code_presentation","id_student"))
 
+names(final_vle_activity) <- 
+  str_replace(names(final_vle_activity),"-","minus_")
+
 final_dataset %<>%
   semi_join(final_vle, by = c("code_module","code_presentation","id_student"))
 
-final_dataset %>%
-  write_csv("output/final_dataset.csv")
-
-final_vle_activity %>%
-  write_csv("output/final_vle_activity.csv")
-
-final_vle %>%
-  write_csv("output/final_vle.csv")
+final_dataset %>% 
+  left_join(final_vle, by = c("code_module","code_presentation","id_student")) %>%
+  left_join(final_vle_activity, by = c("code_module","code_presentation","id_student")) %T>%
+  write_csv("../output/dataset.csv")
 
 ```
 
