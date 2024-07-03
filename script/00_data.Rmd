@@ -149,7 +149,7 @@ final_dataset <-
   mutate(id_assessment = paste0("TMA", id_assessment-min(id_assessment)+1),
          #result = ifelse(score >= 40, "Pass", "Fail"),
          score = ifelse(is.na(score), 0, score),
-         score = ifelse(score > 100, 100, score)
+         score = ifelse(score > 100, 100, score),
          final_result = ifelse(final_result %in% c("Pass","Distinction"), "Pass", "Fail")
          ) %>% 
   select(code_module, 
