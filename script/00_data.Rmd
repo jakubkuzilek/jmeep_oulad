@@ -217,8 +217,8 @@ final_vle <-
 final_vle %<>%
   semi_join(final_dataset, by = c("code_module","code_presentation","id_student"))
 
-names(final_vle_activity) <- 
-  str_replace(names(final_vle_activity),"-","minus_")
+names(final_vle) <- 
+  str_replace(names(final_vle),"-","minus_")
 
 final_dataset %<>%
   semi_join(final_vle, by = c("code_module","code_presentation","id_student"))
